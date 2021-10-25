@@ -1,8 +1,8 @@
-module master_spi (i_clk, i_rst_n, i_miso, o_data, o_mosi, o_cs, o_sck);
+module master_spi (i_clk, i_rst_n_p, i_miso, o_data, o_mosi, o_cs, o_sck);
 
 parameter DATA_WIDTH_MISO = 16;
 
-input i_clk, i_rst_n, i_miso;
+input i_clk, i_rst_n_p, i_miso;
 output o_mosi, o_cs, o_sck;
 output [DATA_WIDTH_MISO-1:0] o_data;
 
@@ -74,7 +74,7 @@ assign trans_mosi_cmplt_Read = o_trans_mosi_cmplt & o_fed_mux_sck & o_inst_d;
 assign trans_write_cmplt = o_trans_mosi_cmplt & o_fed_mux_sck;
 
 // CMP
-assign o_trans_miso_cmplt = o_cnt_bit_miso_data == 7;
+assign o_trans_miso_cmplt = o_cnt_bit_miso_data == 8;
 assign o_trans_mosi_cmplt = o_cnt_bit_mosi_data == 7;
 
 
@@ -91,6 +91,22 @@ assign o_mosi = o_sh_mosi_data[ROM_DATA_WIDTH-1];
 //assign sck
 assign o_sck = o_mux_sck;
 // init all RED
+
+// reset
+wire rst_fmm, i_rst_n , o_rst_fmm;
+assign i_rst_n =  ~(~i_rst_n_p | o_rst_fmm);
+
+//wire for delay load_miso_buf
+
+wire o_en_delay_miso_buff;
+
+
+rise_edge_detect RST_FMM 		( 	.i_clk(i_clk),
+									.i_rst_n(i_rst_n_p),
+									.i_data(rst_fmm),
+									.o_edge_detect(o_rst_fmm)
+									);
+
 rise_edge_detect RED_inc_cnt_inst ( .i_clk(i_clk),
 									.i_rst_n(i_rst_n),
 									.i_data(inc_cnt_inst),
@@ -133,7 +149,9 @@ FMM fmm		(	.i_clk(i_clk), .i_rst_n(i_rst_n), .i_read(trans_mosi_cmplt_Read),
 				.rst_cnt_bit_mosi(rst_cnt_bit_mosi),
 				.rst_cnt_bit_miso(rst_cnt_bit_miso),
 				.en_load_mosi(en_load_mosi),
-				.inc_cnt_inst(inc_cnt_inst)
+				.inc_cnt_inst(inc_cnt_inst),
+				.i_en_delay_miso_buff(o_en_delay_miso_buff),
+				.o_rst(rst_fmm)
 			);
 
 // init mux
@@ -168,13 +186,21 @@ shift_reg #(.WIDTH(DATA_WIDTH_MISO)) sh_miso_reg
 				.o_data(o_sh_miso_data)
 			);
 
+// delay for i_en_load_MISO buff
+rise_edge_detect en_load_miso	(	.i_clk(i_clk),
+									.i_rst_n(i_rst_n),
+									.i_data(o_red_mux_sck),
+									.o_edge_detect(o_en_delay_miso_buff)
+									);
+wire read_word;
+assign read_word = (o_trans_miso_cmplt & o_en_delay_miso_buff);
 // init miso buf
 register #(.WIDTH_DATA(DATA_WIDTH_MISO)) miso_buffer 
 	(
 		.i_clk(i_clk), 
-		.i_rst_n(i_rst_n), 
+		.i_rst_n(i_rst_n_p), 
 		.i_data(o_sh_miso_data), 
-		.i_en_load(o_red_mux_sck), 
+		.i_en_load(read_word), 
 		.o_data(o_data)
 	);
 

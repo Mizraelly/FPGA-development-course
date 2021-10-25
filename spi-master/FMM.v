@@ -1,4 +1,4 @@
-module FMM (i_clk, i_rst_n, i_read, i_write, i_read_cmplt,i_write_cmplt,
+module FMM (i_clk, i_rst_n, i_read, i_write, i_read_cmplt,i_write_cmplt,i_en_delay_miso_buff,
 			en_cs_n,
 			mux_control_sck,
 			en_sck_cnt,
@@ -6,18 +6,19 @@ module FMM (i_clk, i_rst_n, i_read, i_write, i_read_cmplt,i_write_cmplt,
 			rst_cnt_bit_mosi,
 			rst_cnt_bit_miso,
 			en_load_mosi,
-			inc_cnt_inst
+			inc_cnt_inst,
+			o_rst
 			);
 
 parameter IDLE = 0, CS_EN = 1, SCK_EN = 2, CNT_INST = 3,
 ADDR_WRITE = 4, READ = 5, WR_AFT_RST = 6, WRITE = 7; 
 
-input i_clk, i_rst_n, i_read, i_write, i_read_cmplt, i_write_cmplt;
+input i_clk, i_rst_n, i_read, i_write, i_read_cmplt, i_write_cmplt,i_en_delay_miso_buff;
 
 output reg en_cs_n,mux_control_sck,en_sck_cnt;
 output reg en_miso_cnt,rst_cnt_bit_mosi,rst_cnt_bit_miso;
 output reg en_load_mosi,inc_cnt_inst;
-
+output reg o_rst;
 
 
 reg [3:0] state, next_state;
@@ -47,7 +48,7 @@ always@* begin
 						next_state = READ;
 					end
 
-		READ:		if (i_read_cmplt)
+		READ:		if (i_read_cmplt & i_en_delay_miso_buff)
 					begin
 						next_state = IDLE;
 					end
@@ -74,10 +75,12 @@ always @(state) begin
 					rst_cnt_bit_mosi = 0;
 					en_load_mosi = 0;
 					inc_cnt_inst = 0;
+					o_rst = 1;
 				end
 
 		CS_EN:	begin
 					en_cs_n = 0;
+					o_rst = 0;
 				end
 
 		SCK_EN:	begin
